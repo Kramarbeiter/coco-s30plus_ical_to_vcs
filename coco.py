@@ -110,7 +110,7 @@ class Event:
         return "\r\n".join(lines)
 
     def get_filename(self):
-        # New naming: Original-Title_Date.vcs
+        # Naming: Original-Title_Date.vcs
         clean_title = re.sub(r'[^a-zA-Z0-9]', '', self.summary_clean.replace(' ', '_'))
         return f"{clean_title[:15]}_{self.start[:8]}.vcs"
 
@@ -146,36 +146,74 @@ class Calendar:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('input')
-    parser.add_argument('--all', action='store_true')
+    parser.add_argument('--all', action='store_true', help="Export all events, including past ones")
     args = parser.parse_args()
 
-    cal = Calendar(args.input)
-    found_events = cal.scan(all_past=args.all)
+    # 1. Find all .ics files in the current directory
+    ics_files = [f for f in os.listdir('.') if os.path.isfile(f) and f.lower().endswith('.ics')]
     
-    total = len(found_events)
-    if total == 0:
-        print("No matching events found.")
+    if not ics_files:
+        print("No .ics files found in the current directory.")
         sys.exit()
 
-    print("\n" + "="*40)
-    print(f"FILE ANALYSIS: {args.input}")
-    print(f"Found events: {total}")
-    print("="*40)
+    print("\nFound .ics files:")
+    for idx, f in enumerate(ics_files, 1):
+        print(f"  [{idx}] {f}")
 
-    user_input = input(f"\nExport? (1-{total}, or Enter for all): ").strip()
-    limit = int(user_input) if user_input else total
+    # 2. Ask user for selection
+    file_selection = input("\nWhich files should be processed? (Enter single number / multiple comma-seperated numbers or just press Enter to process all files): ").strip()
+
+    selected_files = []
+    if not file_selection:
+        selected_files = ics_files
+    else:
+        indices = [i.strip() for i in file_selection.split(',')]
+        for i in indices:
+            if i.isdigit():
+                idx = int(i)
+                if 1 <= idx <= len(ics_files):
+                    selected_files.append(ics_files[idx-1])
+                else:
+                    print(f"  -> Ignoring invalid selection: {idx}")
+
+    if not selected_files:
+        print("No valid files selected. Exiting.")
+        sys.exit()
 
     out_dir = "vcs_files"
     if not os.path.exists(out_dir): os.makedirs(out_dir)
 
-    for i in range(min(limit, total)):
-        ev = found_events[i]
-        vcs_text = ev.toVCS()
-        path = os.path.join(out_dir, ev.get_filename())
-        with open(path, 'w', encoding='latin-1', errors='replace') as f:
-            f.write(vcs_text)
+    total_files_created = 0
+
+    # 3. Process selected files
+    for current_file in selected_files:
+        cal = Calendar(current_file)
+        found_events = cal.scan(all_past=args.all)
+        
+        total = len(found_events)
+        if total == 0:
+            print(f"\nNo matching events found in '{current_file}'.")
+            continue
+
+        print("\n" + "="*40)
+        print(f"FILE ANALYSIS: {current_file}")
+        print(f"Found events: {total}")
+        print("="*40)
+
+        user_input = input(f"How many events shall be processed? (1-{total}, or Enter for all): ").strip()
+        limit = int(user_input) if user_input.isdigit() else total
+
+        export_count = min(limit, total)
+        for i in range(export_count):
+            ev = found_events[i]
+            vcs_text = ev.toVCS()
+            path = os.path.join(out_dir, ev.get_filename())
+            with open(path, 'w', encoding='latin-1', errors='replace') as f:
+                f.write(vcs_text)
+        
+        print(f"  -> {export_count} events from '{current_file}' created in '{out_dir}'.")
+        total_files_created += export_count
     
     print("\n" + "="*40)
-    print(f"DONE! {min(limit, total)} files created.")
+    print(f"DONE! Processed and created a total of {total_files_created} files.")
     print("="*40 + "\n")
