@@ -1,14 +1,12 @@
 Based on https://github.com/antoniobarba/vcalconverter.
 
 ## Usage
-Console: python coco.py calendar.ics [--all]
+Console: python coco.py [--all]
 
-After starting, the script analyzes the file and interactively asks how many events should be exported. One separate `.vcs` file is created for each selected event, since the device can only import one event at a time. The output files are saved in the vcs_files folder.
+After starting, the script analyzes all `.ics` files in its directory and asks which files and how many of its respective events should be exported. One separate `.vcs` file is created for each selected event, since the device can only import one event at a time. The output files are saved in the vcs_files folder.
 
 ## Parameters
-
-1. input: Path to the `.ics` file (.../calendar.ics)
-2. --all (optional): Exports all events. Without this parameter, only events from today onwards are exported (including ongoing past series).
+--all (optional): Exports all events. Without this parameter, only events from today onwards are exported (including ongoing past series).
 
 ## Core Features & Output
 
@@ -33,6 +31,10 @@ After starting, the script analyzes the file and interactively asks how many eve
 - Formatting: Timezone suffixes (e.g., Z) are removed, as the Nokia often interprets them as an error.
 - Umlauts: Are automatically converted (e.g., ö -> oe) to prevent display errors on the screen and save characters.
 
+## Prerequisites
+- **Python 3.x** is required to run this script.
+- No external packages or dependencies are needed (the script relies entirely on Python's standard libraries).
+
 ## Future of this Project
 
-Further developement is not planned.
+Since the scrips solves the problem I had in the most practicable way I can think of, no further developement is planned. However, feel free to make improvements yourself.
