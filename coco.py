@@ -110,9 +110,8 @@ class Event:
         return "\r\n".join(lines)
 
     def get_filename(self):
-        # Naming: Original-Title_Date.vcs
         clean_title = re.sub(r'[^a-zA-Z0-9]', '', self.summary_clean.replace(' ', '_'))
-        return f"{clean_title[:15]}_{self.start[:8]}.vcs"
+        return f"{clean_title[:15]}_{self.start[:15]}.vcs"
 
 class Calendar:
     def __init__(self, file_path):
