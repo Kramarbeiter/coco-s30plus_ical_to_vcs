@@ -14,7 +14,7 @@ After starting, the script analyzes the file and interactively asks how many eve
 ## Core Features & Output
 
 ### Dynamic 40-Character Subject
-- Since the Nokia does not synchronise the location and note data with the 'vcs' file of the respective event, the script combines all information in the subject: "Title, Location (Logic)". Notes are not supported due to the character limit.
+- Since the Nokia does not synchronise the location and note data with the `.vcs` file of the respective event, the script combines all information in the subject: "Title, Location (Logic)". Notes are not supported due to the character limit.
 - Protection: The subject is strictly capped at 40 characters to prevent unwanted behavior. This is the maximum number of characters that can be entered in the subject field on the device.
 - Priority: If space is lacking, the location is removed first (with a warning in the console), then the title is truncated. The logic has priority.
 
