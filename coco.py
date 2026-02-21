@@ -150,7 +150,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # 1. Find all .ics files in the current directory
-    ics_files = [f for f in os.listdir('.') if os.path.isfile(f) and f.lower().endswith('.ics')]
+    ics_files = sorted([f for f in os.listdir('.') if os.path.isfile(f) and f.lower().endswith('.ics')])
     
     if not ics_files:
         print("No .ics files found in the current directory.")
