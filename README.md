@@ -8,7 +8,7 @@ After starting, the script analyzes the file and interactively asks how many eve
 
 ## Parameters
 
-1. input: Path to the .ics file (.../calendar.ics)
+1. input: Path to the `.ics` file (.../calendar.ics)
 2. --all (optional): Exports all events. Without this parameter, only events from today onwards are exported (including ongoing past series).
 
 ## Core Features & Output
@@ -25,9 +25,9 @@ After starting, the script analyzes the file and interactively asks how many eve
 - The device does not support specifying the end of a series, but time-limited series converted by this script can be imported and will function correctly.
 
 ### File Naming
-  The generated .vcs files are formatted for better overview in the Nokia file manager:
-- Format: [Original-Title]_[StartDate].vcs 
-- Example: Team_Meeting_20260302.vcs
+  The generated `.vcs` files are formatted for better overview in the Nokia file manager:
+- Format: `[Original-Title]_[StartDate].vcs`
+- Example: `Team_Meeting_20260302.vcs`
 
 ### Hardware-Specific Fixes
 - End Dates: Series end dates (UNTIL) are patched into the Nokia's DTEND field.
