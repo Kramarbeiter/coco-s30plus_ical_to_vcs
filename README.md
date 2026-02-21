@@ -1,5 +1,4 @@
-# nokia_3210_ical_to_vcs
-Converts `.ics` files into a minimalist vCalendar 1.0 format (`.vcs`) that is tailored to the hardware restrictions of the Nokia 3210 4G (S30+). Based on https://github.com/antoniobarba/vcalconverter.
+Based on https://github.com/antoniobarba/vcalconverter.
 
 ## Usage
 Console: python coco.py calendar.ics [--all]
