@@ -1,7 +1,9 @@
 Based on https://github.com/antoniobarba/vcalconverter.
 
+![[icon.png]]
+
 # Executable
-[Download](https://github.com/Kramarbeiter/nokia_3210_ical_to_vcs/releases/tag/v1.0.0) and run `.exe` file. Hover to recieve explanations.
+[Download](https://github.com/Kramarbeiter/coco-s30plus_ical_to_vcs/releases/) and run `.exe` file. Hover to recieve explanations.
 
 # Script
 
