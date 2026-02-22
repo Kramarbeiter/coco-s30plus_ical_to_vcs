@@ -250,7 +250,7 @@ class Calendar:
 class NokiaConverterApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("S30+ Calendar Converter")
+        self.root.title("Coca - S30+ iCal to VCS Converter")
         self.root.geometry("500x450")
         self.root.resizable(False, False)
 
