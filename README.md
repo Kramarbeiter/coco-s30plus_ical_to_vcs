@@ -1,6 +1,6 @@
 Based on https://github.com/antoniobarba/vcalconverter.
 
-![[icon.png]]
+<img width="1024" height="1024" alt="icon" src="https://github.com/user-attachments/assets/3db2fa17-66ab-46c2-9ebb-d259e1e080ad" />
 
 # Executable
 [Download](https://github.com/Kramarbeiter/coco-s30plus_ical_to_vcs/releases/) and run `.exe` file. Hover to recieve explanations.
