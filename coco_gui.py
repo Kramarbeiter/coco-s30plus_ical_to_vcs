@@ -1,10 +1,21 @@
 import os
 import re
 import json
+import sys
+import ctypes
 import tkinter as tk
 from tkinter import filedialog, messagebox, Menu
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from datetime import datetime
+
+
+def resource_path(relative_path):
+    """Holt den absoluten Pfad zur Ressource, kompatibel mit PyInstaller."""
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 
 def clean_text(text):
@@ -100,11 +111,11 @@ class Event:
         interval = self.get_interval()
         logic_str = ""
 
+        # Aufrunden-Logik (Fügt die Notiz zur Klarstellung an)
         if r and interval > 1:
             start_dt = datetime.strptime(self.start[:8], "%Y%m%d")
             kw = start_dt.isocalendar()[1]
             unit = "W" if "WEEKLY" in r else "D"
-            # Fügt eine Notiz zur Klarstellung an, wie im Projekt definiert
             logic_str = f"({interval}{unit}-W{kw})"
 
         title = self.summary_clean
@@ -242,6 +253,18 @@ class NokiaConverterApp:
         self.root.title("S30+ Calendar Converter")
         self.root.geometry("500x450")
         self.root.resizable(False, False)
+
+        # --- Taskleisten-Fix für Windows ---
+        try:
+            myappid = "nokia.s30plus.converter.1.0"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass
+
+        # Icon für das Fenster laden
+        icon_path = resource_path("icon.ico")
+        if os.path.exists(icon_path):
+            self.root.iconbitmap(icon_path)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -400,7 +423,6 @@ class NokiaConverterApp:
                 self.listbox.insert(tk.END, os.path.basename(f))
 
     def drop_files(self, event):
-        # tkinterdnd2 splittet die Pfade sauber (ignoriert Leerzeichen-Probleme)
         files = self.root.tk.splitlist(event.data)
         for f in files:
             if f.lower().endswith(".ics") and f not in self.file_paths:
@@ -488,7 +510,7 @@ class NokiaConverterApp:
 
 
 if __name__ == "__main__":
-    # WICHTIG: TkinterDnD statt tk.Tk() für das Hauptfenster nutzen!
+    # TkinterDnD statt tk.Tk() für Drag & Drop Unterstützung nutzen
     root = TkinterDnD.Tk()
     app = NokiaConverterApp(root)
     root.mainloop()
