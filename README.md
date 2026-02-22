@@ -6,7 +6,9 @@ Based on https://github.com/antoniobarba/vcalconverter.
 # Script
 
 ## Usage
-Console: python coco.py [--all]
+Console:
+- python coco_nogui.py [--all]
+- python coco_gui.py
 
 After starting, the script analyzes all `.ics` files in its directory and asks which files and how many of its respective events should be exported. One separate `.vcs` file is created for each selected event, since the device can only import one event at a time. The output files are saved in the vcs_files folder.
 
