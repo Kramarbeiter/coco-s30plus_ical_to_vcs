@@ -10,11 +10,8 @@ from datetime import datetime
 
 
 def resource_path(relative_path):
-    """Holt den absoluten Pfad zur Ressource, kompatibel mit PyInstaller."""
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
+    """Gets the absolute path to the resource, compatible with PyInstaller."""
+    base_path = getattr(sys, "_MEIPASS", os.path.abspath("."))
     return os.path.join(base_path, relative_path)
 
 
@@ -77,7 +74,7 @@ class ToolTip:
             background="#ffffe0",
             relief=tk.SOLID,
             borderwidth=1,
-            font=("tahoma", "8", "normal"),
+            font=("tahoma", 8, "normal"),
         )
         label.pack(ipadx=1)
 
@@ -111,7 +108,7 @@ class Event:
         interval = self.get_interval()
         logic_str = ""
 
-        # Aufrunden-Logik (Fügt die Notiz zur Klarstellung an)
+        # Round-up logic (adds a note to clarify the change)
         if r and interval > 1:
             start_dt = datetime.strptime(self.start[:8], "%Y%m%d")
             kw = start_dt.isocalendar()[1]
@@ -121,10 +118,10 @@ class Event:
         title = self.summary_clean
         location = self.location_clean
 
-        def assemble(t, l, log):
+        def assemble(t, g, log):
             res = t
-            if l:
-                res += f", {l}"
+            if g:
+                res += f", {g}"
             if log:
                 res += f" {log}"
             return res
@@ -236,7 +233,10 @@ class Calendar:
                             tmp["location"] = v
                         elif k == "RRULE":
                             tmp["rrule"] = v
-                    except:
+                    except (ValueError, IndexError):
+                        continue
+                    except Exception as e:
+                        print(f"Unexpected error parsing line '{line}': {e}")
                         continue
 
     def scan(self, all_past=False):
@@ -254,14 +254,14 @@ class NokiaConverterApp:
         self.root.geometry("500x450")
         self.root.resizable(False, False)
 
-        # --- Taskleisten-Fix für Windows ---
+        # --- Taskbar fix for Windows ---
         try:
             myappid = "nokia.s30plus.converter.1.0"
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass
 
-        # Icon für das Fenster laden
+        # Load the icon for the window
         icon_path = resource_path("icon.ico")
         if os.path.exists(icon_path):
             self.root.iconbitmap(icon_path)
@@ -309,9 +309,9 @@ class NokiaConverterApp:
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.listbox.yview)
 
-        # Drag & Drop Registrierung für die Listbox
-        self.listbox.drop_target_register(DND_FILES)
-        self.listbox.dnd_bind("<<Drop>>", self.drop_files)
+        # Drag & Drop registration for the listbox
+        self.listbox.drop_target_register(DND_FILES)  # type: ignore
+        self.listbox.dnd_bind("<<Drop>>", self.drop_files)  # type: ignore
 
         self.listbox.bind("<Delete>", self.remove_selected)
         ToolTip(
@@ -439,10 +439,14 @@ class NokiaConverterApp:
 
     def show_context_menu(self, event):
         try:
+            self.listbox.selection_clear(0, tk.END)
             self.listbox.selection_set(self.listbox.nearest(event.y))
+            self.listbox.activate(self.listbox.nearest(event.y))
             self.context_menu.tk_popup(event.x_root, event.y_root)
-        except:
+        except Exception:
             pass
+        finally:
+            self.context_menu.grab_release()
 
     def choose_folder(self):
         folder = filedialog.askdirectory(
@@ -510,7 +514,7 @@ class NokiaConverterApp:
 
 
 if __name__ == "__main__":
-    # TkinterDnD statt tk.Tk() für Drag & Drop Unterstützung nutzen
+    # Use TkinterDnD instead of tk.Tk() for Drag & Drop support
     root = TkinterDnD.Tk()
     app = NokiaConverterApp(root)
     root.mainloop()

@@ -54,10 +54,10 @@ class Event:
         title = self.summary_clean
         location = self.location_clean
 
-        def assemble(t, l, log):
+        def assemble(t, g, log):
             res = t
-            if l:
-                res += f", {l}"
+            if g:
+                res += f", {g}"
             if log:
                 res += f" {log}"
             return res
@@ -179,7 +179,10 @@ class Calendar:
                             tmp["location"] = v
                         elif k == "RRULE":
                             tmp["rrule"] = v
-                    except:
+                    except (ValueError, IndexError):
+                        continue
+                    except Exception as e:
+                        print(f"Unexpected error parsing line '{line}': {e}")
                         continue
 
     def scan(self, all_past=False):
