@@ -1,5 +1,10 @@
 Based on https://github.com/antoniobarba/vcalconverter.
 
+# Executable
+Download and run `.exe` file (https://github.com/Kramarbeiter/nokia_3210_ical_to_vcs/releases/tag/v1.0.0). Hover to recieve explanations.
+
+# Script
+
 ## Usage
 Console: python coco.py [--all]
 
