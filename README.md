@@ -9,8 +9,8 @@ Download and run `.exe` file. Hover to recieve explanations.
 
 ## Usage
 Console:
-- python coco_nogui.py [--all]
-- python coco_gui.py
+- python coca_nogui.py [--all]
+- python coca_gui.py
 
 After starting, the script analyzes all `.ics` files in its directory and asks which files and how many of its respective events should be exported. One separate `.vcs` file is created for each selected event, since the device can only import one event at a time. The output files are saved in the vcs_files folder.
 
