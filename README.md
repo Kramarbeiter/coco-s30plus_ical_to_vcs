@@ -2,15 +2,15 @@ Based on https://github.com/antoniobarba/vcalconverter.
 
 <img width="256" height="1024" alt="icon" src="https://github.com/user-attachments/assets/3db2fa17-66ab-46c2-9ebb-d259e1e080ad" />
 
-# [Download Executable](https://github.com/Kramarbeiter/coco-s30plus_ical_to_vcs/releases/)
+# [Download Executable](https://github.com/Kramarbeiter/coca-s30plus_ical_to_vcs/releases/)
 Download and run `.exe` file. Hover to recieve explanations.
 
 # Script
 
 ## Usage
 Console:
-- python coca_nogui.py [--all]
-- python coca_gui.py
+- python coco_nogui.py [--all]
+- python coco_gui.py
 
 After starting, the script analyzes all `.ics` files in its directory and asks which files and how many of its respective events should be exported. One separate `.vcs` file is created for each selected event, since the device can only import one event at a time. The output files are saved in the vcs_files folder.
 
