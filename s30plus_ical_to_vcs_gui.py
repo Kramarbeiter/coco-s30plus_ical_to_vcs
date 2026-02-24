@@ -118,7 +118,7 @@ class Event:
         interval = self.get_interval()
         logic_str = ""
 
-        # Round-up logic (adds a note to clarify the change)
+        # Aufrunden-Logik (Fügt die Notiz zur Klarstellung an)
         if r and interval > 1:
             start_dt = datetime.strptime(self.start[:8], "%Y%m%d")
             kw = start_dt.isocalendar()[1]
@@ -346,9 +346,7 @@ class NokiaConverterApp:
         self.current_profile_path = None
         self.unsaved_profile_changes = False
         self.exported_uids = []
-        self.last_profile_dir = (
-            ""  # New: Remembers the last used directory for profiles
-        )
+        self.last_profile_dir = ""
 
         self.max_events_var = tk.StringVar(value="0")
         self.out_dir_var = tk.StringVar(value=os.path.join(os.getcwd(), "vcs_files"))
@@ -459,7 +457,6 @@ class NokiaConverterApp:
         self.browse_btn.pack(side=tk.LEFT, padx=5)
         ToolTip(self.browse_btn, "Browse for output folder.")
 
-        # --- Checkboxes mit vergrößertem oberen Abstand (pady=(15, 2)) ---
         self.chk_past = tk.Checkbutton(
             settings_frame, text="Export past events", variable=self.all_past_var
         )
@@ -471,7 +468,7 @@ class NokiaConverterApp:
 
         self.chk_dupes = tk.Checkbutton(
             settings_frame,
-            text="Skip already exported events of active profile",
+            text="Skip already exported events of active loaded profile",
             variable=self.skip_dupes_var,
         )
         self.chk_dupes.grid(row=3, column=0, columnspan=2, sticky="w", pady=2)
@@ -500,7 +497,7 @@ class NokiaConverterApp:
             name = os.path.basename(self.current_profile_path)
             self.profile_label_var.set(f"Active Profile: {name}{status}")
         else:
-            self.profile_label_var.set(f"Active Profile: Unsaved{status}")
+            self.profile_label_var.set(f"Active Profile: Unsaved / Temporary{status}")
 
     def load_settings(self):
         try:
@@ -623,13 +620,48 @@ class NokiaConverterApp:
                 )
 
     def save_profile(self):
-        """Saves the current list of UIDs to a JSON file."""
-        default_name = f"nokia_profile_{datetime.now().strftime('%Y%m%d')}.json"
+        """Saves the current profile. Updates the timestamp in the filename automatically."""
+        today_str = datetime.now().strftime("%Y%m%d")
 
-        # If we already have a loaded profile, use that as the default save path instead
         if self.current_profile_path:
-            filepath = self.current_profile_path
+            # Smart Save: Extrahieren und Aktualisieren des Datums im Dateinamen
+            old_filepath = self.current_profile_path
+            dir_name = os.path.dirname(old_filepath)
+            base_name = os.path.basename(old_filepath)
+
+            # Basisname ohne Dateiendung isolieren
+            name_without_ext = os.path.splitext(base_name)[0]
+
+            # Ein mögliches altes Datum am Ende abschneiden (Regex sucht nach "_12345678" am Ende)
+            name_without_date = re.sub(r"_\d{8}$", "", name_without_ext)
+
+            # Neuen Dateinamen mit aktuellem Datum zusammenbauen
+            new_filename = f"{name_without_date}_{today_str}.json"
+            filepath = os.path.join(dir_name, new_filename)
+
+            try:
+                self.last_profile_dir = dir_name
+                self.exported_uids = list(set(self.exported_uids))
+                with open(filepath, "w") as f:
+                    json.dump(self.exported_uids, f)
+
+                # Wenn sich der Name geändert hat (wegen neuem Datum), lösche die alte Datei
+                if filepath != old_filepath and os.path.exists(old_filepath):
+                    os.remove(old_filepath)
+
+                self.current_profile_path = filepath
+                self.unsaved_profile_changes = False
+                self.update_profile_label()
+                messagebox.showinfo(
+                    "Success",
+                    f"Profile automatically saved to:\n{new_filename}",
+                )
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not auto-save profile:\n{e}")
+
         else:
+            # Wenn noch gar kein Profil geladen/erstellt wurde (Fallback)
+            default_name = f"nokia_profile_{today_str}.json"
             filepath = filedialog.asksaveasfilename(
                 title="Save Phone Profile",
                 initialdir=self.last_profile_dir if self.last_profile_dir else None,
@@ -638,21 +670,19 @@ class NokiaConverterApp:
                 initialfile=default_name,
             )
 
-        if filepath:
-            try:
-                self.last_profile_dir = os.path.dirname(filepath)
+            if filepath:
+                try:
+                    self.last_profile_dir = os.path.dirname(filepath)
+                    self.exported_uids = list(set(self.exported_uids))
+                    with open(filepath, "w") as f:
+                        json.dump(self.exported_uids, f)
 
-                # Clean up duplicates to keep JSON small
-                self.exported_uids = list(set(self.exported_uids))
-                with open(filepath, "w") as f:
-                    json.dump(self.exported_uids, f)
-
-                self.current_profile_path = filepath
-                self.unsaved_profile_changes = False
-                self.update_profile_label()
-                messagebox.showinfo("Success", "Profile saved successfully!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Could not save profile:\n{e}")
+                    self.current_profile_path = filepath
+                    self.unsaved_profile_changes = False
+                    self.update_profile_label()
+                    messagebox.showinfo("Success", "Profile saved successfully!")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Could not save profile:\n{e}")
 
     def on_closing(self):
         if self.unsaved_profile_changes:
