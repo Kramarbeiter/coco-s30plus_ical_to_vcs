@@ -5,7 +5,7 @@ Based on https://github.com/antoniobarba/vcalconverter.
 # [Download Executable](https://github.com/Kramarbeiter/coca-s30plus_ical_to_vcs/releases/)
 Download and run `.exe` file. Hover to recieve explanations.
 
-<img width="512" height="480" alt="Coca" src="https://github.com/user-attachments/assets/18c516c6-5ed3-4ff9-ab3c-b4379e1c7517" />
+<img width="512" height="545" alt="Screenshot 2026-02-24 132652" src="https://github.com/user-attachments/assets/72a21295-cdf2-45c6-8277-9d7dd140bb63" />
 
 # Future of this Project
 
