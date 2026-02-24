@@ -6,7 +6,7 @@ import ctypes
 import tkinter as tk
 from tkinter import filedialog, messagebox, Menu
 from tkinterdnd2 import DND_FILES, TkinterDnD
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def resource_path(relative_path):
@@ -87,7 +87,14 @@ class ToolTip:
 
 class Event:
     def __init__(
-        self, start="", end="", summary="", location="", description="", rrule=""
+        self,
+        start="",
+        end="",
+        summary="",
+        location="",
+        description="",
+        rrule="",
+        uid="",
     ):
         self.start = start.split("Z")[0].split("+")[0]
         self.end_orig = end.split("Z")[0].split("+")[0] if end else self.start
@@ -95,6 +102,9 @@ class Event:
         self.summary_clean = clean_text(summary)
         self.location_clean = clean_text(location)
         self.rrule_orig = rrule
+
+        # Saves the unique ID. Creates a fallback hash if UID is missing in the file.
+        self.uid = uid.strip() if uid else f"{self.start}-{self.summary_clean}"
         self.final_summary = ""
 
     def get_interval(self):
@@ -118,25 +128,26 @@ class Event:
         title = self.summary_clean
         location = self.location_clean
 
-        def assemble(t, g, log):
-            res = t
-            if g:
-                res += f", {g}"
-            if log:
-                res += f" {log}"
-            return res
+        logic_suffix = f" {logic_str}" if logic_str else ""
+        avail_len = 40 - len(logic_suffix)
 
-        test_summary = assemble(title, location, logic_str)
+        loc_str = f", {location}" if location else ""
 
-        if len(test_summary) > 40 and location:
-            location = ""
-            test_summary = assemble(title, location, logic_str)
+        # Smart truncation logic: Prioritize Location and Logic over full Title
+        if len(title) + len(loc_str) <= avail_len:
+            test_summary = title + loc_str + logic_suffix
+        else:
+            if len(loc_str) > 15:
+                location = location[:12] + "." if len(location) > 12 else location
+                loc_str = f", {location}" if location else ""
 
-        if len(test_summary) > 40:
-            suffix_len = len(f" {logic_str}") if logic_str else 0
-            max_title_len = 40 - suffix_len
-            title = title[:max_title_len].strip()
-            test_summary = assemble(title, "", logic_str)
+            title_max = avail_len - len(loc_str)
+            if title_max < 5:
+                title_max = avail_len
+                loc_str = ""
+
+            title = title[:title_max].strip()
+            test_summary = title + loc_str + logic_suffix
 
         self.final_summary = test_summary
 
@@ -202,6 +213,7 @@ class Calendar:
                 "location": "",
                 "description": "",
                 "rrule": "",
+                "uid": "",
             }
             in_ev = False
             for line in f:
@@ -217,6 +229,7 @@ class Calendar:
                         "location": "",
                         "description": "",
                         "rrule": "",
+                        "uid": "",
                     }
                     in_ev = False
                 elif in_ev and ":" in line:
@@ -233,6 +246,8 @@ class Calendar:
                             tmp["location"] = v
                         elif k == "RRULE":
                             tmp["rrule"] = v
+                        elif k == "UID":
+                            tmp["uid"] = v
                     except (ValueError, IndexError):
                         continue
                     except Exception as e:
@@ -240,18 +255,73 @@ class Calendar:
                         continue
 
     def scan(self, all_past=False):
+        # Sorts everything chronologically first
         self.events.sort(key=lambda x: x.start)
         today = datetime.now().strftime("%Y%m%d")
-        return [
-            e for e in self.events if all_past or (e.start[:8] >= today or e.rrule_orig)
-        ]
+
+        scenario2_events = []
+        dead_past_events = []
+
+        for e in self.events:
+            is_scenario2 = False
+
+            # Check if it is a future/today event or an ongoing series
+            if e.start[:8] >= today:
+                is_scenario2 = True
+            elif e.rrule_orig:
+                rrule_upper = e.rrule_orig.upper()
+                match_until = re.search(r"UNTIL=([0-9]{8})", rrule_upper)
+                match_count = re.search(r"COUNT=(\d+)", rrule_upper)
+
+                if match_until:
+                    if match_until.group(1) >= today:
+                        is_scenario2 = True
+                elif match_count:
+                    # Approximation of the end date for COUNT-based series
+                    count = int(match_count.group(1))
+                    interval = e.get_interval()
+                    freq_match = re.search(
+                        r"FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)", rrule_upper
+                    )
+                    freq = freq_match.group(1) if freq_match else "DAILY"
+
+                    days_mult = {
+                        "DAILY": 1,
+                        "WEEKLY": 7,
+                        "MONTHLY": 31,
+                        "YEARLY": 365,
+                    }.get(freq, 1)
+                    total_days = count * interval * days_mult
+
+                    try:
+                        start_dt = datetime.strptime(e.start[:8], "%Y%m%d")
+                        end_dt = start_dt + timedelta(days=total_days)
+                        if end_dt.strftime("%Y%m%d") >= today:
+                            is_scenario2 = True
+                    except ValueError:
+                        is_scenario2 = True
+                else:
+                    # Infinite series without UNTIL or COUNT
+                    is_scenario2 = True
+
+            # Categorize events based on our check
+            if is_scenario2:
+                scenario2_events.append(e)
+            else:
+                dead_past_events.append(e)
+
+        # If all_past is true, we prioritize scenario2 events, then append dead events to fill the quota
+        if all_past:
+            return scenario2_events + dead_past_events
+        else:
+            return scenario2_events
 
 
 class NokiaConverterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Coca - S30+ iCal to VCS Converter")
-        self.root.geometry("500x450")
+        self.root.geometry("500x515")
         self.root.resizable(False, False)
 
         # --- Taskbar fix for Windows ---
@@ -268,20 +338,49 @@ class NokiaConverterApp:
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+        # --- Profile & State Variables ---
         self.file_paths = []
         self.config_path = os.path.join(
             os.path.expanduser("~"), ".s30_converter_cfg.json"
+        )
+        self.current_profile_path = None
+        self.unsaved_profile_changes = False
+        self.exported_uids = []
+        self.last_profile_dir = (
+            ""  # New: Remembers the last used directory for profiles
         )
 
         self.max_events_var = tk.StringVar(value="0")
         self.out_dir_var = tk.StringVar(value=os.path.join(os.getcwd(), "vcs_files"))
         self.all_past_var = tk.BooleanVar(value=False)
+        self.skip_dupes_var = tk.BooleanVar(value=True)
+
+        # --- Menu Bar ---
+        menubar = Menu(self.root)
+        profile_menu = Menu(menubar, tearoff=0)
+        profile_menu.add_command(label="New Profile", command=self.new_profile)
+        profile_menu.add_separator()
+        profile_menu.add_command(label="Load Profile", command=self.load_profile)
+        profile_menu.add_command(label="Save Profile", command=self.save_profile)
+        menubar.add_cascade(label="Profile", menu=profile_menu)
+        self.root.config(menu=menubar)
+
+        # --- Active Profile Label ---
+        self.profile_label_var = tk.StringVar()
+        self.update_profile_label()
+        profile_lbl = tk.Label(
+            self.root,
+            textvariable=self.profile_label_var,
+            font=("Arial", 9, "bold"),
+            fg="#555555",
+        )
+        profile_lbl.pack(pady=(10, 0))
 
         self.load_settings()
 
         # --- Top Frame ---
         top_frame = tk.Frame(root)
-        top_frame.pack(fill=tk.X, padx=20, pady=(15, 5))
+        top_frame.pack(fill=tk.X, padx=20, pady=(10, 5))
 
         self.add_btn = tk.Button(
             top_frame, text="Add .ics", command=self.add_files, width=10
@@ -336,7 +435,7 @@ class NokiaConverterApp:
         self.max_events_entry.grid(row=0, column=1, sticky="w", padx=5)
         ToolTip(
             self.max_events_entry,
-            "Maximum number of events to process per file.\n'0' means: Process ALL events in the file.",
+            "Maximum number of events to process per file.\n'0' means: Process ALL events in the file.\nNote: Future and ongoing events are always prioritized over old past events.",
         )
 
         tk.Label(settings_frame, text="Output Folder:").grid(
@@ -360,13 +459,25 @@ class NokiaConverterApp:
         self.browse_btn.pack(side=tk.LEFT, padx=5)
         ToolTip(self.browse_btn, "Browse for output folder.")
 
+        # --- Checkboxes mit vergrößertem oberen Abstand (pady=(15, 2)) ---
         self.chk_past = tk.Checkbutton(
             settings_frame, text="Export past events", variable=self.all_past_var
         )
-        self.chk_past.grid(row=2, column=0, columnspan=2, sticky="w", pady=2)
+        self.chk_past.grid(row=2, column=0, columnspan=2, sticky="w", pady=(15, 2))
         ToolTip(
             self.chk_past,
             "If checked, past events will also be exported.\nOtherwise, only events from today onwards\n(incl. ongoing past series) are exported.",
+        )
+
+        self.chk_dupes = tk.Checkbutton(
+            settings_frame,
+            text="Skip already exported events of active loaded profile",
+            variable=self.skip_dupes_var,
+        )
+        self.chk_dupes.grid(row=3, column=0, columnspan=2, sticky="w", pady=2)
+        ToolTip(
+            self.chk_dupes,
+            "Uses the active Profile Memory to prevent creating duplicates. ",
         )
 
         # --- Convert Button ---
@@ -380,8 +491,16 @@ class NokiaConverterApp:
             padx=10,
             pady=5,
         )
-        self.convert_btn.pack(pady=(5, 15))
+        self.convert_btn.pack(pady=(5, 10))
         ToolTip(self.convert_btn, "Starts converting all files currently in the list.")
+
+    def update_profile_label(self):
+        status = "*" if self.unsaved_profile_changes else ""
+        if self.current_profile_path:
+            name = os.path.basename(self.current_profile_path)
+            self.profile_label_var.set(f"Active Profile: {name}{status}")
+        else:
+            self.profile_label_var.set(f"Active Profile: Unsaved{status}")
 
     def load_settings(self):
         try:
@@ -394,6 +513,14 @@ class NokiaConverterApp:
                         self.out_dir_var.set(config["out_dir"])
                     if "all_past" in config:
                         self.all_past_var.set(config["all_past"])
+                    if "skip_dupes" in config:
+                        self.skip_dupes_var.set(config["skip_dupes"])
+                    if "last_profile_dir" in config:
+                        self.last_profile_dir = config["last_profile_dir"]
+                    if "last_profile_path" in config:
+                        path = config["last_profile_path"]
+                        if path and os.path.exists(path):
+                            self._load_profile_data(path)
         except Exception:
             pass
 
@@ -403,13 +530,143 @@ class NokiaConverterApp:
                 "max_events": self.max_events_var.get(),
                 "out_dir": self.out_dir_var.get(),
                 "all_past": self.all_past_var.get(),
+                "skip_dupes": self.skip_dupes_var.get(),
+                "last_profile_path": getattr(self, "current_profile_path", None),
+                "last_profile_dir": getattr(self, "last_profile_dir", ""),
             }
             with open(self.config_path, "w") as f:
                 json.dump(config, f)
         except Exception:
             pass
 
+    def _load_profile_data(self, filepath):
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    self.exported_uids = data
+                    self.current_profile_path = filepath
+                    self.unsaved_profile_changes = False
+                    self.update_profile_label()
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def new_profile(self):
+        """Creates a new empty profile and loads it."""
+        if self.unsaved_profile_changes:
+            res = messagebox.askyesnocancel(
+                "Unsaved Changes",
+                "You have unsaved exports. Do you want to save before creating a new profile?",
+            )
+            if res is True:
+                self.save_profile()
+            elif res is None:
+                return  # Aborts
+
+        default_name = f"nokia_profile_{datetime.now().strftime('%Y%m%d')}.json"
+
+        filepath = filedialog.asksaveasfilename(
+            title="Create New Phone Profile",
+            initialdir=self.last_profile_dir if self.last_profile_dir else None,
+            defaultextension=".json",
+            filetypes=[("JSON Profile", "*.json")],
+            initialfile=default_name,
+        )
+
+        if filepath:
+            try:
+                self.last_profile_dir = os.path.dirname(filepath)
+                self.exported_uids = []
+                with open(filepath, "w") as f:
+                    json.dump(self.exported_uids, f)
+
+                self.current_profile_path = filepath
+                self.unsaved_profile_changes = False
+                self.update_profile_label()
+                self.save_settings()
+                messagebox.showinfo(
+                    "Success", "New profile created and loaded successfully!"
+                )
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not create profile:\n{e}")
+
+    def load_profile(self):
+        """Manually loads a specific list of UIDs from a JSON file."""
+        if self.unsaved_profile_changes:
+            res = messagebox.askyesnocancel(
+                "Unsaved Changes",
+                "You have unsaved exports. Do you want to save before loading a new profile?",
+            )
+            if res is True:
+                self.save_profile()
+            elif res is None:
+                return
+
+        filepath = filedialog.askopenfilename(
+            title="Load Phone Profile",
+            initialdir=self.last_profile_dir if self.last_profile_dir else None,
+            filetypes=[("JSON Profile", "*.json")],
+        )
+
+        if filepath:
+            self.last_profile_dir = os.path.dirname(filepath)
+            if self._load_profile_data(filepath):
+                messagebox.showinfo(
+                    "Success",
+                    f"Profile loaded successfully!\n\n({len(self.exported_uids)} events in memory)",
+                )
+            else:
+                messagebox.showerror(
+                    "Error", "Invalid profile format. Expected a valid JSON list."
+                )
+
+    def save_profile(self):
+        """Saves the current list of UIDs to a JSON file."""
+        default_name = f"nokia_profile_{datetime.now().strftime('%Y%m%d')}.json"
+
+        # If we already have a loaded profile, use that as the default save path instead
+        if self.current_profile_path:
+            filepath = self.current_profile_path
+        else:
+            filepath = filedialog.asksaveasfilename(
+                title="Save Phone Profile",
+                initialdir=self.last_profile_dir if self.last_profile_dir else None,
+                defaultextension=".json",
+                filetypes=[("JSON Profile", "*.json")],
+                initialfile=default_name,
+            )
+
+        if filepath:
+            try:
+                self.last_profile_dir = os.path.dirname(filepath)
+
+                # Clean up duplicates to keep JSON small
+                self.exported_uids = list(set(self.exported_uids))
+                with open(filepath, "w") as f:
+                    json.dump(self.exported_uids, f)
+
+                self.current_profile_path = filepath
+                self.unsaved_profile_changes = False
+                self.update_profile_label()
+                messagebox.showinfo("Success", "Profile saved successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not save profile:\n{e}")
+
     def on_closing(self):
+        if self.unsaved_profile_changes:
+            res = messagebox.askyesnocancel(
+                "Unsaved Changes",
+                "You have exported new events that haven't been saved to your profile.\n\nDo you want to save your profile before closing?",
+            )
+            if res is True:
+                self.save_profile()
+            elif res is None:
+                return  # Aborts closing if they hit cancel
+
+        # We only save the UI settings and the path to the last loaded profile.
+        # The memory list itself is deliberately wiped from RAM when closing.
         self.save_settings()
         self.root.destroy()
 
@@ -480,15 +737,27 @@ class NokiaConverterApp:
             )
             return
 
-        self.save_settings()
-
         all_past = self.all_past_var.get()
+        skip_dupes = self.skip_dupes_var.get()
+
         total_files = 0
         total_events = 0
+        skipped_events = 0
+        new_exports_added = False
 
         for file_path in self.file_paths:
             cal = Calendar(file_path)
             found_events = cal.scan(all_past=all_past)
+
+            # --- Anti-Duplicate Filter ---
+            if skip_dupes:
+                filtered_events = []
+                for e in found_events:
+                    if e.uid in self.exported_uids:
+                        skipped_events += 1
+                    else:
+                        filtered_events.append(e)
+                found_events = filtered_events
 
             total_found = len(found_events)
             if total_found == 0:
@@ -503,14 +772,24 @@ class NokiaConverterApp:
                 path = os.path.join(out_dir, ev.get_filename())
                 with open(path, "w", encoding="latin-1", errors="replace") as f:
                     f.write(vcs_text)
+
                 total_events += 1
+                self.exported_uids.append(ev.uid)
+                new_exports_added = True
 
             total_files += 1
 
-        messagebox.showinfo(
-            "Success",
-            f"Done!\n\nProcessed {total_files} file(s).\nCreated {total_events} .vcs files in:\n{out_dir}",
-        )
+        if new_exports_added:
+            self.unsaved_profile_changes = True
+            self.update_profile_label()
+
+        self.save_settings()
+
+        msg = f"Done!\n\nProcessed {total_files} file(s).\nCreated {total_events} new .vcs files in:\n{out_dir}"
+        if skip_dupes and skipped_events > 0:
+            msg += f"\n\n(Skipped {skipped_events} events that were already exported previously)"
+
+        messagebox.showinfo("Success", msg)
 
 
 if __name__ == "__main__":
