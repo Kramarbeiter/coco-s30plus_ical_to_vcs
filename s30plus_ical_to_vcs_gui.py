@@ -497,7 +497,7 @@ class NokiaConverterApp:
             name = os.path.basename(self.current_profile_path)
             self.profile_label_var.set(f"Active Profile: {name}{status}")
         else:
-            self.profile_label_var.set(f"Active Profile: Unsaved / Temporary{status}")
+            self.profile_label_var.set(f"Active Profile: Unsaved{status}")
 
     def load_settings(self):
         try:
