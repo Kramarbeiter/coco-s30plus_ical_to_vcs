@@ -118,7 +118,7 @@ class Event:
         interval = self.get_interval()
         logic_str = ""
 
-        # Aufrunden-Logik (Fügt die Notiz zur Klarstellung an)
+        # Round-up logic (adds a note to clarify the change)
         if r and interval > 1:
             start_dt = datetime.strptime(self.start[:8], "%Y%m%d")
             kw = start_dt.isocalendar()[1]
@@ -347,6 +347,7 @@ class NokiaConverterApp:
         self.unsaved_profile_changes = False
         self.exported_uids = []
         self.last_profile_dir = ""
+        self.last_ics_dir = ""  # Remembers the last used directory for .ics files
 
         self.max_events_var = tk.StringVar(value="0")
         self.out_dir_var = tk.StringVar(value=os.path.join(os.getcwd(), "vcs_files"))
@@ -457,6 +458,7 @@ class NokiaConverterApp:
         self.browse_btn.pack(side=tk.LEFT, padx=5)
         ToolTip(self.browse_btn, "Browse for output folder.")
 
+        # --- Checkboxes with increased top padding (pady=(15, 2)) ---
         self.chk_past = tk.Checkbutton(
             settings_frame, text="Export past events", variable=self.all_past_var
         )
@@ -514,6 +516,8 @@ class NokiaConverterApp:
                         self.skip_dupes_var.set(config["skip_dupes"])
                     if "last_profile_dir" in config:
                         self.last_profile_dir = config["last_profile_dir"]
+                    if "last_ics_dir" in config:
+                        self.last_ics_dir = config["last_ics_dir"]
                     if "last_profile_path" in config:
                         path = config["last_profile_path"]
                         if path and os.path.exists(path):
@@ -530,6 +534,7 @@ class NokiaConverterApp:
                 "skip_dupes": self.skip_dupes_var.get(),
                 "last_profile_path": getattr(self, "current_profile_path", None),
                 "last_profile_dir": getattr(self, "last_profile_dir", ""),
+                "last_ics_dir": getattr(self, "last_ics_dir", ""),
             }
             with open(self.config_path, "w") as f:
                 json.dump(config, f)
@@ -624,18 +629,18 @@ class NokiaConverterApp:
         today_str = datetime.now().strftime("%Y%m%d")
 
         if self.current_profile_path:
-            # Smart Save: Extrahieren und Aktualisieren des Datums im Dateinamen
+            # Smart Save: Extract and update the date in the filename
             old_filepath = self.current_profile_path
             dir_name = os.path.dirname(old_filepath)
             base_name = os.path.basename(old_filepath)
 
-            # Basisname ohne Dateiendung isolieren
+            # Isolate base name without file extension
             name_without_ext = os.path.splitext(base_name)[0]
 
-            # Ein mögliches altes Datum am Ende abschneiden (Regex sucht nach "_12345678" am Ende)
+            # Trim a possible old date at the end (Regex looks for "_12345678" at the end)
             name_without_date = re.sub(r"_\d{8}$", "", name_without_ext)
 
-            # Neuen Dateinamen mit aktuellem Datum zusammenbauen
+            # Assemble new filename with current date
             new_filename = f"{name_without_date}_{today_str}.json"
             filepath = os.path.join(dir_name, new_filename)
 
@@ -645,7 +650,7 @@ class NokiaConverterApp:
                 with open(filepath, "w") as f:
                     json.dump(self.exported_uids, f)
 
-                # Wenn sich der Name geändert hat (wegen neuem Datum), lösche die alte Datei
+                # If the name changed (due to a new date), delete the old file
                 if filepath != old_filepath and os.path.exists(old_filepath):
                     os.remove(old_filepath)
 
@@ -654,13 +659,13 @@ class NokiaConverterApp:
                 self.update_profile_label()
                 messagebox.showinfo(
                     "Success",
-                    f"Profile automatically saved to:\n{new_filename}",
+                    f"Profile automatically saved and updated to:\n{new_filename}",
                 )
             except Exception as e:
                 messagebox.showerror("Error", f"Could not auto-save profile:\n{e}")
 
         else:
-            # Wenn noch gar kein Profil geladen/erstellt wurde (Fallback)
+            # If no profile has been loaded/created yet (Fallback)
             default_name = f"nokia_profile_{today_str}.json"
             filepath = filedialog.asksaveasfilename(
                 title="Save Phone Profile",
@@ -702,12 +707,19 @@ class NokiaConverterApp:
 
     def add_files(self):
         files = filedialog.askopenfilenames(
-            title="Select .ics files", filetypes=[("ICS files", "*.ics")]
+            title="Select .ics files",
+            initialdir=self.last_ics_dir if self.last_ics_dir else None,
+            filetypes=[("ICS files", "*.ics")],
         )
-        for f in files:
-            if f not in self.file_paths:
-                self.file_paths.append(f)
-                self.listbox.insert(tk.END, os.path.basename(f))
+        if files:
+            # Immediately save the folder of the last selected file
+            self.last_ics_dir = os.path.dirname(files[0])
+            self.save_settings()
+
+            for f in files:
+                if f not in self.file_paths:
+                    self.file_paths.append(f)
+                    self.listbox.insert(tk.END, os.path.basename(f))
 
     def drop_files(self, event):
         files = self.root.tk.splitlist(event.data)
