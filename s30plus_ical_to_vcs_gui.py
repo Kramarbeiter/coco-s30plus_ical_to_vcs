@@ -471,7 +471,7 @@ class NokiaConverterApp:
 
         self.chk_dupes = tk.Checkbutton(
             settings_frame,
-            text="Skip already exported events of active loaded profile",
+            text="Skip already exported events of active profile",
             variable=self.skip_dupes_var,
         )
         self.chk_dupes.grid(row=3, column=0, columnspan=2, sticky="w", pady=2)
