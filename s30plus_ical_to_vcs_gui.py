@@ -96,12 +96,54 @@ class Event:
         rrule="",
         uid="",
     ):
-        self.start = start.split("Z")[0].split("+")[0]
-        self.end_orig = end.split("Z")[0].split("+")[0] if end else self.start
+        start_raw = start.split("Z")[0].split("+")[0]
+        end_raw = end.split("Z")[0].split("+")[0] if end else start_raw
 
         self.summary_clean = clean_text(summary)
         self.location_clean = clean_text(location)
         self.rrule_orig = rrule
+
+        # Identify if the original strings were all-day (no 'T' present)
+        is_all_day_start = "T" not in start_raw
+        is_all_day_end = "T" not in end_raw
+
+        d_start_str = start_raw[:8]
+        t_start_str = (
+            start_raw.split("T")[1] if not is_all_day_start else "000000"
+        ).ljust(6, "0")[:6]
+
+        d_end_str = end_raw[:8]
+        t_end_str = (end_raw.split("T")[1] if not is_all_day_end else "000000").ljust(
+            6, "0"
+        )[:6]
+
+        # Handle exclusive end date for all-day events (e.g. Google Calendar sets end to the next day)
+        if is_all_day_start and is_all_day_end and d_end_str > d_start_str:
+            try:
+                end_dt = datetime.strptime(d_end_str, "%Y%m%d") - timedelta(days=1)
+                d_end_str = end_dt.strftime("%Y%m%d")
+            except ValueError:
+                pass
+
+        self.start = f"{d_start_str}T{t_start_str}"
+        self.end_orig = f"{d_end_str}T{t_end_str}"
+
+        self.time_suffix = ""
+
+        # --- THE MULTI-DAY PATCH ---
+        # Detects if the event spans across multiple calendar days
+        if d_start_str != d_end_str:
+            # If it has specific times, save them to be appended to the title safely later
+            if not (is_all_day_start and is_all_day_end):
+                self.time_suffix = f", {t_start_str[:2]}:{t_start_str[2:4]}-{t_end_str[:2]}:{t_end_str[2:4]}"
+
+            # Force the event to start (and end) at midnight to act like a full-day event on the Nokia
+            self.start = f"{d_start_str}T000000"
+            self.end_orig = f"{d_end_str}T000000"
+
+            # Turn it into a daily recurring event if it isn't a series already
+            if not self.rrule_orig:
+                self.rrule_orig = f"FREQ=DAILY;UNTIL={d_end_str}T000000"
 
         # Saves the unique ID. Creates a fallback hash if UID is missing in the file.
         self.uid = uid.strip() if uid else f"{self.start}-{self.summary_clean}"
@@ -120,23 +162,30 @@ class Event:
 
         # Round-up logic (adds a note to clarify the change)
         if r and interval > 1:
-            start_dt = datetime.strptime(self.start[:8], "%Y%m%d")
-            kw = start_dt.isocalendar()[1]
-            unit = "W" if "WEEKLY" in r else "D"
-            logic_str = f"({interval}{unit}-W{kw})"
+            try:
+                start_dt = datetime.strptime(self.start[:8], "%Y%m%d")
+                kw = start_dt.isocalendar()[1]
+                unit = "W" if "WEEKLY" in r else "D"
+                logic_str = f"({interval}{unit}-W{kw})"
+            except ValueError:
+                pass
 
         title = self.summary_clean
         location = self.location_clean
 
-        logic_suffix = f" {logic_str}" if logic_str else ""
-        avail_len = 40 - len(logic_suffix)
+        # Combine protected suffixes (Times and Logic)
+        logic_suffix = self.time_suffix
+        if logic_str:
+            logic_suffix += f" {logic_str}"
 
+        avail_len = 40 - len(logic_suffix)
         loc_str = f", {location}" if location else ""
 
         # Smart truncation logic: Prioritize Location and Logic over full Title
         if len(title) + len(loc_str) <= avail_len:
             test_summary = title + loc_str + logic_suffix
         else:
+            # If location is excessively long, cap it
             if len(loc_str) > 15:
                 location = location[:12] + "." if len(location) > 12 else location
                 loc_str = f", {location}" if location else ""
